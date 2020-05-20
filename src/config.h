@@ -35,6 +35,24 @@
 #define REVERSE_PIN PA5
 #define START_PIN PA6
 
+#ifdef USE_HEATER
+#define TEMP_OUSIDE_PIN PB0
+#define TEMP_HEATER_PIN PB1
+
+#define TEMP_OUTSIDE_CONSTANT 1
+#define TEMP_OUTSIDE_FACTOR 1
+#define TEMP_HEATER_CONSTANT 1
+#define TEMP_HEATER_FACTOR 1
+
+#define HEATER_PIN PA7
+
+#define PID_FREQUENCY_US 100000
+#define MAX_PWM ((1 << PWM_RESOLUTION) - 1)
+
+#define DEFAULT_P 10
+#define DEFAULT_I 0.1
+#define DEFAULT_D 5
+#endif // USE_HEATER
 
 // Calculations
 #ifndef M_PI
