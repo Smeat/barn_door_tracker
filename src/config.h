@@ -20,7 +20,7 @@
 #define EXTERNAL_GEAR_RATIO 4.3
 #define DESIRED_MAIN_GEAR_RPM 1.09
 
-#define REVERSE_RPM 10
+#define REVERSE_RPM 15
 
 #define SCREW_PITCH 0.8
 
