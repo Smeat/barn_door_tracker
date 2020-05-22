@@ -1,3 +1,5 @@
+#ifndef __CONFIG_H_
+#define __CONFIG_H_
 /*
  * Copyright (c) 2020 smeat.
  *
@@ -16,6 +18,14 @@
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+
+#include <Arduino.h>
+
+#define USE_HEATER
+#define USE_DHT
+
+#define TEMPERATURE_DEW_OFFSET 2000 // 2°C
+
 #define MOTOR_STEPS_PER_REV 4096
 #define EXTERNAL_GEAR_RATIO 4.3
 #define DESIRED_MAIN_GEAR_RPM 1.09
@@ -64,3 +74,5 @@
 #define DEGREE_TO_MM(x) (2.0*M_PI*CIRCLE_RADIUS_MM*(x/360.0))
 // steps until 90°
 #define MAX_STEPS (int(DEGREE_TO_MM(90))*STEPS_PER_MM)
+
+#endif // __CONFIG_H_

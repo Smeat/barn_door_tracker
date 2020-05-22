@@ -24,6 +24,11 @@
 
 #include "config.h"
 
+#ifdef USE_HEATER
+#include "dht22.h"
+#include "pid.h"
+#endif
+
 CheapStepper stepper(MOTOR_IN1, MOTOR_IN2, MOTOR_IN3, MOTOR_IN4);
 Bounce start_debounce = Bounce();
 
@@ -45,31 +50,14 @@ typedef struct temp_sensor_s {
 	float constant;
 } temp_sensor_t;
 
-typedef struct pid_state_s {
-	// constantly changing variables
-	uint16_t oldError = 0;
-	float iterm = 0;
-	// precalculated values
-	float kd_time = 0;
-	float ki_time = 0;
 
-	// actual pid
-	float Kp = DEFAULT_P;
-	float Ki = DEFAULT_I;
-	float Kd = DEFAULT_D;
-	uint32_t last_micros = 0;
-	uint32_t pwm_output_pin = 0;
-	void (*get_values)(uint16_t* target, uint16_t* is);
-} pid_state_t;
-
+#ifdef USE_DHT
+dht22_t dht_sensor;
+#else
 temp_sensor_t temp_outside = {TEMP_OUSIDE_PIN, TEMP_OUTSIDE_FACTOR, TEMP_OUTSIDE_CONSTANT};
+#endif
 temp_sensor_t temp_heater = {TEMP_HEATER_PIN, TEMP_HEATER_FACTOR, TEMP_HEATER_CONSTANT};
 pid_state_t heater_pid; // TODO: init and load from eeprom
-void update_pid_time(pid_state_t* pid, uint32_t time_us) {
-	float time_s = time_us * 1e6;
-	pid->ki_time = pid->Ki * time_s;
-	pid->kd_time = pid->Kd / time_s;
-}
 
 // temperture in m°C
 uint16_t read_temperature(temp_sensor_t* sensor) {
@@ -78,33 +66,14 @@ uint16_t read_temperature(temp_sensor_t* sensor) {
 }
 
 void get_heater_values(uint16_t* target, uint16_t* is) {
-	*target = read_temperature(&temp_outside) + 2;
+#ifdef USE_DHT
+	*target = dht_get_dew_point(&dht_sensor) + TEMPERATURE_DEW_OFFSET;
+#else
+	*target = read_temperature(&temp_outside) + TEMPERATURE_DEW_OFFSET;
+#endif
 	*is = read_temperature(&temp_heater);
 }
 
-uint16_t calculatePID(pid_state_t* pid, uint16_t target, uint16_t is){
-	int16_t error = target - is;
-
-	float pterm = pid->Kp * error;
-	float dterm = pid->kd_time * (error - pid->oldError);
-
-	if(((pterm + pid->iterm + dterm) < MAX_PWM) && ((pterm + pid->iterm + dterm) > -MAX_PWM)){
-		pid->iterm += (pid->ki_time * error);
-	}
-
-	if(error > abs(20)){ //set I to 0 if error is too big
-		pid->iterm = 0;
-	}
-
-	float output = pterm + pid->iterm + dterm;
-
-	if(output > MAX_PWM) output = MAX_PWM;
-	if(output < 0) output = 0;
-
-	pid->oldError = error;
-
-	return (uint16_t)output;
-}
 #endif // USE_HEATER
 
 void setup() {
@@ -120,7 +89,10 @@ void setup() {
 	stepper.setTotalSteps(MOTOR_STEPS_PER_REV);
 #ifdef USE_HEATER
 	pinMode(TEMP_HEATER_PIN, INPUT);
+#ifdef USE_DHT
+#else
 	pinMode(TEMP_OUSIDE_PIN, INPUT);
+#endif
 	heater_pid.get_values = get_heater_values;
 	heater_pid.pwm_output_pin = HEATER_PIN;
 #endif // USE_HEATER
