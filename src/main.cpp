@@ -17,7 +17,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 #include <Arduino.h>
-#include <CheapStepper.h>
+#include <AsyncStepper.h>
+#include <UnipolarDriver.h>
 #include <Bounce2.h>
 #include <cstdint>
 #include <stdlib.h>
