@@ -17,11 +17,13 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 #include <Arduino.h>
-#include <CheapStepper.h>
+#include <AsyncStepper.h>
+#include <UnipolarDriver.h>
 #include <Bounce2.h>
 #include <cstdint>
 #include <stdlib.h>
 
+#include "UnipolarDriver.h"
 #include "config.h"
 
 #ifdef USE_HEATER
@@ -29,7 +31,7 @@
 #include "pid.h"
 #endif
 
-CheapStepper stepper(MOTOR_IN1, MOTOR_IN2, MOTOR_IN3, MOTOR_IN4);
+async_stepper_t stepper;
 Bounce start_debounce = Bounce();
 
 enum STATE {
@@ -41,7 +43,6 @@ enum STATE {
 
 int current_state = IDLE;
 uint32_t last_micros = 0;
-int32_t absolute_pos = 0;
 
 #ifdef USE_HEATER
 typedef struct temp_sensor_s {
@@ -86,7 +87,7 @@ void setup() {
 	start_debounce.attach(START_PIN, INPUT_PULLUP);
 	start_debounce.interval(25);
 	Serial1.printf("Starting with %d max_steps\n", MAX_STEPS);
-	stepper.setTotalSteps(MOTOR_STEPS_PER_REV);
+	unipolar_init(&stepper, MOTOR_STEPS_PER_REV, CALCULATED_MOTOR_RPM, MOTOR_IN1, MOTOR_IN2, MOTOR_IN3, MOTOR_IN4);
 #ifdef USE_HEATER
 	pinMode(TEMP_HEATER_PIN, INPUT);
 #ifdef USE_DHT
@@ -100,45 +101,40 @@ void setup() {
 
 
 void set_idle() {
-	stepper.off();
-	Serial1.printf("Idling with pos %d and steps left %d\n", absolute_pos, stepper.getStepsLeft());
+	Serial1.printf("Idling with pos %d and steps left %d\n", stepper.position, stepper.steps_left);
 	// adjust current position
-	absolute_pos -= stepper.getStepsLeft();
-	Serial1.printf("New pos is %d\n", absolute_pos);
-	stepper.stop();
+	async_stepper_move(&stepper, 0);
+	stepper.on = false;
 	current_state = IDLE;
 }
 
 void update() {
 	if(current_state == IDLE) {
 		if(start_debounce.fell()) {
-			int steps = MAX_STEPS - absolute_pos;
+			int steps = MAX_STEPS - stepper.position;
 			if(!digitalRead(REVERSE_PIN)) {
-				stepper.setRpm(REVERSE_RPM);
-				stepper.newMove(false, steps); // Endstop will stop the motor
-				absolute_pos -= steps;
+				async_stepper_set_rpm(&stepper, REVERSE_RPM);
+				async_stepper_move(&stepper, steps);
 				current_state = REVERSING;
-				Serial1.printf("Reversing with pos %d and steps left %d...\n", absolute_pos, stepper.getStepsLeft());
+				Serial1.printf("Reversing with pos %d and steps left %d...\n", stepper.position, stepper.steps_left);
 			} else {
-				stepper.setRpm(CALCULATED_MOTOR_RPM);
-				stepper.newMove(true, steps);
-				absolute_pos += steps;
+				async_stepper_set_rpm(&stepper, CALCULATED_MOTOR_RPM);
+				async_stepper_move(&stepper, steps);
 				current_state = TRACKING;
-				Serial1.printf("Tracking with pos %d and steps left %d...\n", absolute_pos, stepper.getStepsLeft());
+				Serial1.printf("Tracking with pos %d and steps left %d...\n", stepper.position, stepper.steps_left);
 			}
 		}
 	} else if(current_state == TRACKING || current_state == REVERSING) {
-		stepper.run();
 		if(start_debounce.fell()) {
 			set_idle();
-			Serial1.printf("Stopping with pos %d and steps left %d\n", absolute_pos, stepper.getStepsLeft());
+			Serial1.printf("Stopping with pos %d and steps left %d\n", stepper.position, stepper.steps_left);
 		}
 	}
 	if(!digitalRead(ENDSTOP_PIN)) {
 		Serial1.println("Endstop hit!!");
 		set_idle();
-		absolute_pos = 0;
 	}
+	async_stepper_update(&stepper);
 }
 
 #ifdef USE_HEATER
